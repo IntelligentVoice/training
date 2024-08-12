@@ -1,0 +1,88 @@
+- name: Capture VM Images
+  hosts: localhost
+  connection: local
+  vars:
+    vm_list:
+      - vm_name: AppServer
+        vm_size: Standard_B8ms
+      - vm_name: ASR
+        vm_size: Standard_NC4as_T4_v3
+      - vm_name: Diarization
+        vm_size: Standard_NC4as_T4_v3
+      - vm_name: Elasticsearch
+        vm_size: Standard_E2as_v5
+      - vm_name: LexiQal
+        vm_size: Standard_F2s_v2
+      - vm_name: LMBuilder
+        vm_size: Standard_F2s_v2
+      - vm_name: MariaDB
+        vm_size: Standard_E4-2ads_v5
+      - vm_name: Sentiment
+        vm_size: Standard_NC4as_T4_v3
+      - vm_name: Tagger
+        vm_size: Standard_E2as_v5
+      - vm_name: VAD
+        vm_size: Standard_F2s_v2
+      - vm_name: VoiceBiometric
+        vm_size: Standard_F2s_v2
+  tasks:
+    - name: Create shared image gallery
+      azure.azcollection.azure_rm_gallery:
+        resource_group: "{{ resource_group }}"
+        name: "iv_shared_gallery"
+        location: "{{ azure_region | default('uksouth') }}"
+        description: Shared Image Gallery for IV images
+    - name: Stop and generalize VMs
+      azure.azcollection.azure_rm_virtualmachine:
+        resource_group: '{{ resource_group }}'
+        name: '{{ item.vm_name }}'
+        generalized: 'yes'
+      loop: '{{ vm_list }}'
+    - name: Create images from VMs
+      azure.azcollection.azure_rm_image:
+        resource_group: '{{ resource_group }}'
+        name: 'image_{{ item.vm_name }}'
+        source: '{{ item.vm_name }}'
+      loop: '{{ vm_list }}'
+    - name: Create shared images
+      azure.azcollection.azure_rm_galleryimage:
+        resource_group: "{{ resource_group }}"
+        gallery_name: "iv_shared_gallery"
+        name: "{{ shared_image_name }}"
+        location: "{{ location }}"
+        os_type: linux
+        os_state: generalized
+        identifier:
+          publisher: IntelligentVoice
+          offer: IntelligentVoice
+          sku: '{{ item.vm_name }}'
+        description: Image description
+      loop: '{{ vm_list }}'
+
+    - name: Create or update a simple gallery image version.
+      azure.azcollection.azure_rm_galleryimageversion:
+        resource_group: "{{ resource_group }}"
+        gallery_name: "{{ shared_gallery_name }}"
+        gallery_image_name: "{{ item.vm_name }}"
+        name: "{{ item.vm_name }}"
+        location: "{{ azure_region | default('uksouth') }}"
+        publishing_profile:
+          replica_count: 3
+          storage_account_type: Standard_LRS
+          managed_image:
+            name: 'image_{{ item.vm_name }}'
+            resource_group: "{{ resource_group }}"
+      loop: '{{ vm_list }}'
+    - name: Create a scale set
+      azure.azcollection.azure_rm_virtualmachinescaleset:
+        resource_group: "{{ resource_group }}"
+        name: 'vmss_{{ item.vm_name }}'
+        vm_size: '{{ item.vm_size }}'
+        capacity: 2
+        upgrade_policy: Manual
+        tier: Standard
+        managed_disk_type: Standard_LRS
+        image:
+          name: 'image_{{ item.vm_name }}'
+          resource_group: "{{ resource_group }}"
+      loop: '{{ vm_list }}'

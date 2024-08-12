@@ -24,6 +24,7 @@
         managed_disk_type: Standard_LRS
         admin_username: ivuser
         ssh_password_enabled: false
+        os_disk_size_gb: 512
         ssh_public_keys:
           - path: /home/ivuser/.ssh/authorized_keys
             key_data: '{{ lookup(''file'', ''~/.ssh/id_rsa.pub'') }}'

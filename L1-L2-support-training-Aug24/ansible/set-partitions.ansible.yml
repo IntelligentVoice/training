@@ -1,0 +1,123 @@
+---
+- name: playbook to extend partitions on Azure RedHat family images to utilise 512GB disk
+  hosts: all
+  become: true
+  vars:
+  - compatible_with_azure_images:
+    - RedHat:RHEL:8-lvm-gen2:latest
+    - RedHat:RHEL:9-lvm-gen2:latest
+    - Oracle:Oracle-Linux:ol89-lvm-gen2:latest
+    - Oracle:Oracle-Linux:ol93-lvm-gen2:latest
+    - resf:rockylinux-x86_64:8-lvm:latest
+    - resf:rockylinux-x86_64:9-lvm:latest
+  tasks:
+  - ansible.builtin.debug: msg="{{ ansible_distribution }} {{ ansible_distribution_major_version }} ({{ ansible_os_family }})"
+  - ansible.builtin.debug: msg="{{ ansible_lvm }}"
+
+  - name: "Check available space at start"
+    ansible.builtin.command: "df -h"
+    register: df
+    changed_when: false
+  - name: "Available space at start"
+    ansible.builtin.debug: var=df.stdout_lines
+
+  - name: "Check /dev/sd* sizes"
+    ansible.builtin.shell: "fdisk -l /dev/sd*"
+    register: fdiskoutput
+    ignore_errors: true
+    changed_when: false
+  - ansible.builtin.debug: var=fdiskoutput.stdout_lines
+
+  - block:
+      - name: Install cloud-utils-growpart and gdisk
+        ansible.builtin.package:
+          name:
+            - cloud-utils-growpart
+            - gdisk
+          state: present
+      - ansible.builtin.set_fact:
+          partition_number: >-
+            {% if ansible_distribution == 'RedHat' and ansible_distribution_major_version == '9' %} 4
+            {% elif (ansible_distribution == 'Rocky') %} 5
+            {% else %} 2 {% endif %}
+          _512gb_device: "{{ '/dev/sda' if '/dev/sda: 5' in fdiskoutput.stdout else '/dev/sdb' }}"
+
+      - ansible.builtin.set_fact:
+          rootvg: "{{ item.value }}"
+        with_dict: "{{ ansible_lvm.vgs }}"
+        when: item.key == "rootvg" or (ansible_distribution == 'Rocky' and item.key == "rocky")
+
+      - ansible.builtin.debug:
+          var: "{{ item }}"
+        with_items:
+          - partition_number | trim
+          - _512gb_device
+          - rootvg.size_g
+
+      - name: Partition settings
+        when:
+          (rootvg.size_g | int) < 500
+        block:
+          - name: "Run growpart {{ _512gb_device }} {{ partition_number | trim }}"
+            shell: "growpart {{ _512gb_device }} {{ partition_number | trim }}"
+
+          - name: "Run pvresize {{ _512gb_device }}{{ partition_number | trim }}"
+            community.general.lvg:
+              vg: "{{ 'rocky' if ansible_distribution == 'Rocky' else 'rootvg' }}"
+              pvs: "{{ _512gb_device }}{{ partition_number | trim }}"
+              pvresize: true
+
+      - name: RedHat - resize the logical volumes
+        community.general.lvol:
+          vg: rootvg
+          lv: "{{ item.lv }}"
+          size: "{{ item.size }}"
+          resizefs: true
+        ignore_errors: true
+        loop:
+          - lv: homelv
+            size: "+10G"
+          - lv: optlv
+            size: "+60G"
+          - lv: varlv
+            size: "+262G"
+          - lv: tmplv
+            size: "+38G"
+          - lv: usrlv
+            size: "+30G"
+          - lv: rootlv
+            size: "+80G"
+        when:
+          - ansible_distribution == 'RedHat'
+          - (ansible_mounts|selectattr("mount", "equalto", "/var")|list)[0].size_available < 20137404928
+
+      - name: OracleLinux - resize the logical volume
+        community.general.lvol:
+          vg: rootvg
+          lv: "rootlv"
+          size: "+480G"
+          resizefs: true
+        when:
+          - ansible_distribution == 'OracleLinux'
+          - (ansible_mounts|selectattr("mount", "equalto", "/")|list)[0].size_available < 68719476736
+
+      - name: Rocky Linux - resize the logical volume
+        community.general.lvol:
+          vg: "rocky"
+          lv: "root"
+          size: "+480G"
+          resizefs: true
+        when:
+          - (ansible_mounts|selectattr("mount", "equalto", "/")|list)[0].size_available < 68719476736
+          - ansible_distribution == 'Rocky'
+
+    when:
+      - ansible_distribution in ['RedHat', 'OracleLinux', 'Rocky']
+      - when: ansible_lvm is defined and ansible_lvm | length > 0
+
+  - name: "Check final available space"
+    shell: "df -h"
+    register: df
+    changed_when: false
+  - name: "Final available space"
+    ansible.builtin.debug: var=df.stdout_lines
