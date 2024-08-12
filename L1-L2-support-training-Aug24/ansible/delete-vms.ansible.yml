@@ -1,0 +1,21 @@
+- name: Delete Azure VMs
+  hosts: localhost
+  connection: local
+  tasks:
+    - name: Delete VMs
+      azure.azcollection.azure_rm_virtualmachine:
+        resource_group: '{{ resource_group }}'
+        name: '{{ item.vm_name }}'
+        state: absent
+      loop:
+        - vm_name: AppServer
+        - vm_name: ASR
+        - vm_name: Diarization
+        - vm_name: Elasticsearch
+        - vm_name: LexiQal
+        - vm_name: LMBuilder
+        - vm_name: MariaDB
+        - vm_name: Sentiment
+        - vm_name: Tagger
+        - vm_name: VAD
+        - vm_name: VoiceBiometric

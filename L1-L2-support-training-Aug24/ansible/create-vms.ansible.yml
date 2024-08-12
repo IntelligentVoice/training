@@ -1,0 +1,57 @@
+- name: Create Azure VMs
+  hosts: localhost
+  connection: local
+  tasks:
+    - name: Ensure SSH directory exists for ivuser
+      ansible.builtin.file:
+        path: /home/ivuser/.ssh
+        state: directory
+        owner: ivuser
+        group: ivuser
+        mode: 448
+    - name: Generate SSH key for ivuser
+      ansible.builtin.user:
+        name: ivuser
+        generate_ssh_key: 'yes'
+        ssh_key_type: rsa
+        ssh_key_bits: 4096
+        ssh_key_file: /home/ivuser/.ssh/id_rsa
+    - name: Create VMs
+      azure.azcollection.azure_rm_virtualmachine:
+        resource_group: '{{ resource_group }}'
+        name: '{{ item.vm_name }}'
+        vm_size: '{{ item.vm_size }}'
+        managed_disk_type: Standard_LRS
+        admin_username: ivuser
+        ssh_password_enabled: false
+        ssh_public_keys:
+          - path: /home/ivuser/.ssh/authorized_keys
+            key_data: '{{ lookup(''file'', ''~/.ssh/id_rsa.pub'') }}'
+        image:
+          offer: RHEL
+          publisher: RedHat
+          sku: 9-lvm-gen2
+          version: latest
+      loop:
+        - vm_name: AppServer
+          vm_size: Standard_B8ms
+        - vm_name: ASR
+          vm_size: Standard_NC4as_T4_v3
+        - vm_name: Diarization
+          vm_size: Standard_NC4as_T4_v3
+        - vm_name: Elasticsearch
+          vm_size: Standard_E2as_v5
+        - vm_name: LexiQal
+          vm_size: Standard_F2s_v2
+        - vm_name: LMBuilder
+          vm_size: Standard_F2s_v2
+        - vm_name: MariaDB
+          vm_size: Standard_E4-2ads_v5
+        - vm_name: Sentiment
+          vm_size: Standard_NC4as_T4_v3
+        - vm_name: Tagger
+          vm_size: Standard_E2as_v5
+        - vm_name: VAD
+          vm_size: Standard_F2s_v2
+        - vm_name: VoiceBiometric
+          vm_size: Standard_F2s_v2

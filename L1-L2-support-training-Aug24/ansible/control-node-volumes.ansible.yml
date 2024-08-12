@@ -1,0 +1,19 @@
+---
+- name: playbook to extend partitions
+  hosts: all
+  become: true
+  tasks:
+  - name: Resize the logical volume
+    community.general.lvol:
+      vg: rootvg
+      lv: homelv
+      size: "+10G"
+      resizefs: true
+    when: ansible_lvm is defined and ansible_lvm | length > 0
+
+  - name: "Check final available space"
+    shell: "df -h"
+    register: df
+    changed_when: false
+  - name: "Final available space"
+    ansible.builtin.debug: var=df.stdout_lines
