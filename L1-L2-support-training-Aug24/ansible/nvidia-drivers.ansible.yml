@@ -1,0 +1,131 @@
+# code: language=ansible
+---
+# Use this approach for installing drivers on RHEL 8 / 9:
+# https://developer.nvidia.com/blog/streamlining-nvidia-driver-deployment-on-rhel-8-with-modularity-streams/
+# build status of drivers:
+# https://developer.download.nvidia.com/compute/cuda/repos/rhel8/x86_64/precompiled/
+# https://developer.download.nvidia.com/compute/cuda/repos/rhel9/x86_64/precompiled/
+- name: Install NVIDIA drivers
+  hosts: all
+  become: true
+  gather_facts: false
+  vars:
+    rhel9_url: https://developer.download.nvidia.com/compute/cuda/repos/rhel9/x86_64/cuda-rhel9.repo
+    rhel8_url: https://developer.download.nvidia.com/compute/cuda/repos/rhel8/x86_64/cuda-rhel8.repo
+    epel9_rpm: "https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm"
+    epel8_rpm: "https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm"
+    epel9_key: http://download.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-9
+    epel8_key: http://download.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-8
+    epel_9_fingerprint: FF8AD1344597106ECE813B918A3872BF3228467C
+    epel_8_fingerprint: 94E279EB8D8F25B21810ADF121EA45AB2F86D6A1
+  tasks:
+    - name: Setup without gathering hardware facts
+      ansible.builtin.setup:
+        gather_subset: "!hardware"
+    - name: Set up NVIDIA CUDA Repo
+      ansible.builtin.get_url:
+        url: "{{ rhel9_url if ansible_distribution_major_version == '9' else rhel8_url }}"
+        dest: /etc/yum.repos.d/nvidia-cuda.repo
+        mode: '0644'
+    # verify key from https://fedoraproject.org/security
+    - name: Import Fedora EPEL key from url
+      ansible.builtin.rpm_key:
+        state: present
+        key: "{{ epel9_key if ansible_distribution_major_version == '9' else epel8_key }}"
+        fingerprint: "{{ epel_9_fingerprint if ansible_distribution_major_version == '9' else epel_8_fingerprint }}"
+    # Sometimes this fails with: "Cannot open: https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm. Skipping."
+    # Retry until success
+    - name: Install EPEL
+      ansible.builtin.dnf:
+        name: "{{ epel9_rpm if ansible_distribution_major_version == '9' else epel8_rpm }}"
+        state: present
+      register: dnf_result
+      retries: 5
+      delay: 10
+      until: dnf_result is not failed
+    - name: Install NVIDIA drivers for RHEL8 / 9
+      when: ansible_os_family == 'RedHat' and ansible_distribution_major_version in ['8', '9']
+      block:
+        - name: Install modularity appstream with 535 stream
+          ansible.builtin.dnf:
+            name:
+              - dkms
+              - '@nvidia-driver:535-dkms'
+            state: present
+            update_cache: true
+            install_weak_deps: false
+          register: nvidia_driver_535
+          retries: 6
+          delay: 10
+          until: nvidia_driver_535 is not failed
+
+        - name: "Print installation output"
+          when: nvidia_driver_535.skipped is not defined
+          ansible.builtin.debug:
+            var: nvidia_driver_535.results|default()
+      rescue:
+        - name: Reset driver stream
+          ansible.builtin.command: sudo dnf module reset nvidia-driver
+          changed_when: true
+        - name: Install modularity appstream with 550 stream
+          ansible.builtin.dnf:
+            name: '@nvidia-driver:550-dkms'
+            state: present
+            update_cache: true
+          register: nvidia_driver_550
+          retries: 6
+          delay: 10
+          until: nvidia_driver_550 is not failed
+    - name: Reboot (ansible might hang here)
+      ansible.builtin.reboot:
+        msg: "Rebooting server"
+        pre_reboot_delay: 3
+        reboot_timeout: 300
+    - name: Check driver and reboot again if needed
+      block:
+        - name: "Run nvidia-smi"
+          ansible.builtin.command:
+            cmd: "nvidia-smi"
+          register: smi
+          changed_when: false
+          retries: 1
+          delay: 2
+          until: smi is not failed
+      rescue:
+        - name: Reset driver stream
+          ansible.builtin.command: dnf -y module reset nvidia-driver
+          changed_when: true
+        - name: Install modularity appstream with latest stream
+          ansible.builtin.dnf:
+            name: '@nvidia-driver:latest-dkms'
+            state: present
+            update_cache: true
+          register: nvidia_driver_latest
+          retries: 6
+          delay: 10
+          until: nvidia_driver_latest is not failed
+        - name: Check nvidia-smi and reboot again if needed
+          block:
+            - name: "Run nvidia-smi"
+              ansible.builtin.command:
+                cmd: "nvidia-smi"
+              register: smi
+              changed_when: false
+              retries: 1
+              delay: 2
+              until: smi is not failed
+          rescue:
+            - name: Reboot (ansible might hang here)
+              ansible.builtin.reboot:
+                msg: "Rebooting server"
+                pre_reboot_delay: 3
+                reboot_timeout: 300
+        - name: "Run nvidia-smi"
+          ansible.builtin.command:
+            cmd: "nvidia-smi"
+          register: smi
+          changed_when: false
+    - name: "Show nvidia-smi output"
+      ansible.builtin.debug:
+        var: smi.stdout_lines
+        verbosity: 1
