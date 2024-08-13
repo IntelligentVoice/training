@@ -1,0 +1,12 @@
+# code: language=ansible
+---
+- name: Playbook to fix repo file
+  hosts: all
+  become: true
+  tasks:
+
+- name: Replace all instances of releasever
+  ansible.builtin.replace:
+    path: /etc/yum.repos.d/docker-ce.repo
+    regexp: '\$releasever'
+    replace: '9'
