@@ -4,9 +4,8 @@
   hosts: all
   become: true
   tasks:
-
-- name: Replace all instances of releasever
-  ansible.builtin.replace:
-    path: /etc/yum.repos.d/docker-ce.repo
-    regexp: '\$releasever'
-    replace: '9'
+    - name: Replace all instances of releasever
+      ansible.builtin.replace:
+        path: /etc/yum.repos.d/docker-ce.repo
+        regexp: \$releasever
+        replace: '9'
