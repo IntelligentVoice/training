@@ -129,3 +129,14 @@
       ansible.builtin.debug:
         var: smi.stdout_lines
         verbosity: 1
+    - name: NVIDIA Repo for Red Hat
+      when: ansible_os_family == 'RedHat'
+      ansible.builtin.get_url:
+        url: https://nvidia.github.io/libnvidia-container/stable/rpm/nvidia-container-toolkit.repo
+        dest: /etc/yum.repos.d/nvidia-container-toolkit.repo
+        mode: '0644'
+    - name: Install nvidia-container-toolkit
+      ansible.builtin.package:
+        name: nvidia-container-toolkit
+        state: present
+        update_cache: true
