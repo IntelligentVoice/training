@@ -33,6 +33,16 @@
         state: present
         key: "{{ epel9_key if ansible_distribution_major_version == '9' else epel8_key }}"
         fingerprint: "{{ epel_9_fingerprint if ansible_distribution_major_version == '9' else epel_8_fingerprint }}"
+    - name: Replace all instances of releasever
+      ansible.builtin.replace:
+        path: '{{ item }}'
+        regexp: '\$releasever'
+        replace: '9'
+      loop:
+        - /etc/yum.repos.d/epel.repo
+        - /etc/yum.repos.d/epel-cisco-openh264.repo
+        - /etc/yum.repos.d/epel-testing.repo
+      ignore_errors: true
     # Sometimes this fails with: "Cannot open: https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm. Skipping."
     # Retry until success
     - name: Install EPEL
