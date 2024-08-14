@@ -45,12 +45,12 @@
       until: dnf_result is not failed
     - name: Replace all instances of releasever
       ansible.builtin.replace:
-      path:
-      - /etc/yum.repos.d/epel.repo
-      - /etc/yum.repos.d/epel-cisco-openh264.repo
-      - /etc/yum.repos.d/epel-testing.repo
-      regexp: '\$releasever'
-      replace: '9'
+        path:
+          - /etc/yum.repos.d/epel.repo
+          - /etc/yum.repos.d/epel-cisco-openh264.repo
+          - /etc/yum.repos.d/epel-testing.repo
+        regexp: '\$releasever'
+        replace: '9'
     - name: Install NVIDIA drivers for RHEL8 / 9
       when: ansible_os_family == 'RedHat' and ansible_distribution_major_version in ['8', '9']
       block:
