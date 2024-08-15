@@ -59,7 +59,7 @@
         resource_group: "{{ resource_group }}"
         gallery_name: "{{ shared_gallery_name }}"
         gallery_image_name: 'image_{{ item.vm_name }}'
-        name: "{{ item.vm_name }}"
+        name: 1.0.0
         location: "{{ azure_region | default('uksouth') }}"
         publishing_profile:
           replica_count: 3
