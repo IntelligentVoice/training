@@ -54,10 +54,10 @@
         description: '{{ item.vm_name }}'
       register: result
       failed_when:
-        - result.rc > 0
-        - '"already exists" not in result.msg'
+        - '"error" in result.msg|lower'
+        - '"already exists" not in result.msg|lower'
       changed_when:
-        - '"already exists" not in result.msg'
+        - '"already exists" not in result.msg|lower'
       loop: '{{ vm_list }}'
 
     - name: Create or update a simple gallery image version.
