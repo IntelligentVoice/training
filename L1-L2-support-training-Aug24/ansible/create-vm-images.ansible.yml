@@ -2,6 +2,7 @@
   hosts: localhost
   connection: local
   vars:
+    shared_gallery_name: "iv_shared_gallery"
     vm_list:
       - vm_name: ASR{{ vm_suffix }}
         vm_size: Standard_NC4as_T4_v3
@@ -23,7 +24,7 @@
     - name: Create shared image gallery
       azure.azcollection.azure_rm_gallery:
         resource_group: "{{ resource_group }}"
-        name: "iv_shared_gallery"
+        name: "{{ shared_gallery_name }}"
         location: "{{ azure_region | default('uksouth') }}"
         description: Shared Image Gallery for IV images
     - name: Stop and generalize VMs
@@ -43,7 +44,7 @@
         resource_group: "{{ resource_group }}"
         gallery_name: "iv_shared_gallery"
         name: 'image_{{ item.vm_name }}'
-        location: "{{ location }}"
+        location: "{{ azure_region | default('uksouth') }}"
         os_type: linux
         os_state: generalized
         identifier:
