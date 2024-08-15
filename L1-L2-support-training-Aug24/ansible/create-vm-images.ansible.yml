@@ -3,27 +3,21 @@
   connection: local
   vars:
     vm_list:
-      - vm_name: AppServer
-        vm_size: Standard_B8ms
-      - vm_name: ASR
+      - vm_name: ASR-KCCT-10
         vm_size: Standard_NC4as_T4_v3
-      - vm_name: Diarization
+      - vm_name: Diarization-KCCT-10
         vm_size: Standard_NC4as_T4_v3
-      - vm_name: Elasticsearch
+      - vm_name: LexiQal-KCCT-10
+        vm_size: Standard_F2s_v2
+      - vm_name: LMBuilder-KCCT-10
+        vm_size: Standard_F2s_v2
+      - vm_name: Sentiment-KCCT-10
+        vm_size: Standard_NC4as_T4_v3
+      - vm_name: Tagger-KCCT-10
         vm_size: Standard_E2as_v5
-      - vm_name: LexiQal
+      - vm_name: VAD-KCCT-10
         vm_size: Standard_F2s_v2
-      - vm_name: LMBuilder
-        vm_size: Standard_F2s_v2
-      - vm_name: MariaDB
-        vm_size: Standard_E4-2ads_v5
-      - vm_name: Sentiment
-        vm_size: Standard_NC4as_T4_v3
-      - vm_name: Tagger
-        vm_size: Standard_E2as_v5
-      - vm_name: VAD
-        vm_size: Standard_F2s_v2
-      - vm_name: VoiceBiometric
+      - vm_name: VoiceBiometric-KCCT-10
         vm_size: Standard_F2s_v2
   tasks:
     - name: Create shared image gallery
