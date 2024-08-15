@@ -73,7 +73,7 @@
         resource_group: "{{ resource_group }}"
         name: 'vmss_{{ item.vm_name }}'
         vm_size: '{{ item.vm_size }}'
-        capacity: 2
+        capacity: 1
         upgrade_policy: Manual
         tier: Standard
         managed_disk_type: Standard_LRS
