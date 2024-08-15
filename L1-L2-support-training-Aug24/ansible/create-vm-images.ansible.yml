@@ -58,7 +58,7 @@
       azure.azcollection.azure_rm_galleryimageversion:
         resource_group: "{{ resource_group }}"
         gallery_name: "{{ shared_gallery_name }}"
-        gallery_image_name: 'image_{{ item.vm_name }}'
+        gallery_image_name: 'gallery_image_{{ item.vm_name }}'
         name: 1.0.0
         location: "{{ azure_region | default('uksouth') }}"
         publishing_profile:
