@@ -3,21 +3,21 @@
   connection: local
   vars:
     vm_list:
-      - vm_name: ASR-KCCT-10
+      - vm_name: ASR{{ vm_suffix }}
         vm_size: Standard_NC4as_T4_v3
-      - vm_name: Diarization-KCCT-10
+      - vm_name: Diarization{{ vm_suffix }}
         vm_size: Standard_NC4as_T4_v3
-      - vm_name: LexiQal-KCCT-10
+      - vm_name: LexiQal{{ vm_suffix }}
         vm_size: Standard_F2s_v2
-      - vm_name: LMBuilder-KCCT-10
+      - vm_name: LMBuilder{{ vm_suffix }}
         vm_size: Standard_F2s_v2
-      - vm_name: Sentiment-KCCT-10
+      - vm_name: Sentiment{{ vm_suffix }}
         vm_size: Standard_NC4as_T4_v3
-      - vm_name: Tagger-KCCT-10
+      - vm_name: Tagger{{ vm_suffix }}
         vm_size: Standard_E2as_v5
-      - vm_name: VAD-KCCT-10
+      - vm_name: VAD{{ vm_suffix }}
         vm_size: Standard_F2s_v2
-      - vm_name: VoiceBiometric-KCCT-10
+      - vm_name: VoiceBiometric{{ vm_suffix }}
         vm_size: Standard_F2s_v2
   tasks:
     - name: Create shared image gallery
@@ -42,7 +42,7 @@
       azure.azcollection.azure_rm_galleryimage:
         resource_group: "{{ resource_group }}"
         gallery_name: "iv_shared_gallery"
-        name: "{{ shared_image_name }}"
+        name: 'image_{{ item.vm_name }}'
         location: "{{ location }}"
         os_type: linux
         os_state: generalized
