@@ -46,7 +46,7 @@
       azure.azcollection.azure_rm_galleryimage:
         resource_group: "{{ resource_group }}"
         gallery_name: "iv_shared_gallery"
-        name: 'gallery_image_{{ item.vm_name }}'
+        name: 'image_{{ item.vm_name }}'
         location: "{{ azure_region | default('uksouth') }}"
         os_type: linux
         os_state: generalized
@@ -63,13 +63,13 @@
         - '"already exists" not in result.msg|lower'
       loop: '{{ vm_list }}'
       loop_control:
-        label: 'gallery_image_{{ item.vm_name }}'
+        label: 'image_{{ item.vm_name }}'
 
     - name: Create or update a simple gallery image version.
       azure.azcollection.azure_rm_galleryimageversion:
         resource_group: "{{ resource_group }}"
         gallery_name: "{{ shared_gallery_name }}"
-        gallery_image_name: 'gallery_image_{{ item.vm_name }}'
+        gallery_image_name: 'image_{{ item.vm_name }}'
         name: 1.0.0
         location: "{{ azure_region | default('UK South') }}"
         publishing_profile:
@@ -83,7 +83,7 @@
           source_image: "{{ image_results.results[loop_index].id }}"
       loop: '{{ vm_list }}'
       loop_control:
-        label: 'gallery_image_{{ item.vm_name }}'
+        label: 'image_{{ item.vm_name }}'
         index_var: loop_index
     - name: Create a scale set
       azure.azcollection.azure_rm_virtualmachinescaleset:
