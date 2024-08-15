@@ -43,7 +43,7 @@
       azure.azcollection.azure_rm_galleryimage:
         resource_group: "{{ resource_group }}"
         gallery_name: "iv_shared_gallery"
-        name: 'image_{{ item.vm_name }}'
+        name: 'gallery_image_{{ item.vm_name }}'
         location: "{{ azure_region | default('uksouth') }}"
         os_type: linux
         os_state: generalized
