@@ -39,6 +39,9 @@
         name: 'image_{{ item.vm_name }}'
         source: '{{ item.vm_name }}'
       loop: '{{ vm_list }}'
+      loop_control:
+        label: 'image_{{ item.vm_name }}'
+      register: image_results
     - name: Create shared images
       azure.azcollection.azure_rm_galleryimage:
         resource_group: "{{ resource_group }}"
@@ -59,6 +62,8 @@
       changed_when:
         - '"already exists" not in result.msg|lower'
       loop: '{{ vm_list }}'
+      loop_control:
+        label: 'gallery_image_{{ item.vm_name }}'
 
     - name: Create or update a simple gallery image version.
       azure.azcollection.azure_rm_galleryimageversion:
@@ -74,10 +79,12 @@
               regional_replica_count: 1
               storage_account_type: Standard_LRS
           storage_account_type: Standard_LRS
-          managed_image:
-            name: 'image_{{ item.vm_name }}'
-            resource_group: "{{ resource_group }}"
+        storage_profile:
+          source_image: "{{ image_results.results[loop_index].id }}"
       loop: '{{ vm_list }}'
+      loop_control:
+        label: 'gallery_image_{{ item.vm_name }}'
+        index_var: loop_index
     - name: Create a scale set
       azure.azcollection.azure_rm_virtualmachinescaleset:
         resource_group: "{{ resource_group }}"
