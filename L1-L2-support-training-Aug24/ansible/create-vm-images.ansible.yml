@@ -60,9 +60,13 @@
         gallery_name: "{{ shared_gallery_name }}"
         gallery_image_name: 'gallery_image_{{ item.vm_name }}'
         name: 1.0.0
-        location: "{{ azure_region | default('uksouth') }}"
+        location: "{{ azure_region | default('UK South') }}"
         publishing_profile:
-          replica_count: 3
+          replica_count: 1
+          target_regions:
+            - name: "{{ azure_region | default('UK South') }}"
+              regional_replica_count: 1
+              storage_account_type: Standard_LRS
           storage_account_type: Standard_LRS
           managed_image:
             name: 'image_{{ item.vm_name }}'
