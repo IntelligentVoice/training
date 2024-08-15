@@ -74,11 +74,16 @@
         name: 'vmss_{{ item.vm_name }}'
         vm_size: '{{ item.vm_size }}'
         capacity: 1
+        priority: Spot
+        eviction_policy: Deallocate
         upgrade_policy: Manual
         tier: Standard
         managed_disk_type: Standard_LRS
         virtual_network_name: "VNET{{ vm_suffix }}"
+        subnet_name: default
         image:
-          name: 'image_{{ item.vm_name }}'
-          resource_group: "{{ resource_group }}"
+          offer: IntelligentVoice
+          publisher: IntelligentVoice
+          sku: '{{ item.vm_name }}'
+          version: latest
       loop: '{{ vm_list }}'
