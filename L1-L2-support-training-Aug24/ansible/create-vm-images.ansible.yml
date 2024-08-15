@@ -51,7 +51,13 @@
           publisher: IntelligentVoice
           offer: IntelligentVoice
           sku: '{{ item.vm_name }}'
-        description: Image description
+        description: '{{ item.vm_name }}'
+      register: result
+      failed_when:
+        - result.rc > 0
+        - '"already exists" not in result.msg'
+      changed_when:
+        - '"already exists" not in result.msg'
       loop: '{{ vm_list }}'
 
     - name: Create or update a simple gallery image version.
