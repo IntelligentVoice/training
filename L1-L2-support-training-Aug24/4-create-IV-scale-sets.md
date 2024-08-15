@@ -10,6 +10,19 @@ Creating the Application Insights
 --
 Follow [the instructions](https://support.intelligentvoice.com/hc/en-us/articles/23612526692371-Azure-Autoscaling-Setup#AzureAutoscalingSetup-Step1.CreateanApplicationInsightresource) and get the instrumentation key.
 
+Configuration change to add gearmanstats to the installation
+--
+Insert the block below into your inventory (hosts.ini file), setting the `instrumentation_key` value to your instrumentation key 
+
+    gearman_stats_enabled=true
+    gearman_stats_platform=azure
+    instrumentation_key=d6067e5a-9031-4213-893e-e39aaf1d1400
+
+Re-run the installation
+
+Create Images and Scale Sets
+--
+
 To create the VM images and Scale Sets, run the [create_vm-images.ansible.yml](ansible/create-vm-images.ansible.yml) playbook passing it your inventory file (`hosts.ini`) and the name of your resource group and VM suffix
 
 ```bash
