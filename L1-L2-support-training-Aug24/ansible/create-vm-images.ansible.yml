@@ -86,6 +86,8 @@
       loop_control:
         label: 'image_{{ item.vm_name }}'
         index_var: loop_index
+      register: version_results
+
     - name: Create a scale set
       azure.azcollection.azure_rm_virtualmachinescaleset:
         resource_group: "{{ resource_group }}"
@@ -100,8 +102,7 @@
         virtual_network_name: "VNET{{ vm_suffix }}"
         subnet_name: default
         image:
-          offer: IntelligentVoice
-          publisher: IntelligentVoice
-          sku: '{{ item.vm_name }}'
-          version: latest
+          id: "{{ version_results.results[loop_index].id }}"
       loop: '{{ vm_list }}'
+      loop_control:
+        index_var: loop_index
