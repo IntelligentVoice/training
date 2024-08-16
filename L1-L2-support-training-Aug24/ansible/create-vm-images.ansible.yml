@@ -2,7 +2,7 @@
   hosts: localhost
   connection: local
   vars:
-    shared_gallery_name: "iv_shared_gallery"
+    shared_gallery_name: "iv_shared_gallery{{ vm_suffix }}"
     vm_list:
       - vm_name: ASR{{ vm_suffix }}
         vm_size: Standard_NC4as_T4_v3
@@ -64,6 +64,7 @@
       loop: '{{ vm_list }}'
       loop_control:
         label: 'image_{{ item.vm_name }}'
+      ignore_errors: true
 
     - name: Create or update a simple gallery image version.
       azure.azcollection.azure_rm_galleryimageversion:
