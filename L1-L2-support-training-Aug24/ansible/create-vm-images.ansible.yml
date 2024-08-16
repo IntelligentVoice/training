@@ -69,7 +69,6 @@
       loop: '{{ vm_list }}'
       loop_control:
         label: 'image_{{ item.vm_name }}'
-        index_var: loop_index
 
     - name: Create or update a gallery image version
       azure.azcollection.azure_rm_galleryimageversion:
@@ -87,7 +86,7 @@
           storage_account_type: Standard_LRS
         storage_profile:
           source_image: "{{ image_results.results[loop_index].id }}"
-      when: "gallery_image_version not in existing_versions.results | map(attribute='name')"
+      when: "gallery_image_version not in existing_versions.results[loop_index] | map(attribute='name')"
       loop: '{{ vm_list }}'
       loop_control:
         label: 'image_{{ item.vm_name }}'
