@@ -2,26 +2,38 @@
   hosts: localhost
   connection: local
   vars:
-    shared_gallery_name: "iv_shared_gallery{{ vm_suffix | replace('-', '_') }}"
+    shared_gallery_name: "iv_compute_gallery{{ vm_suffix | replace('-', '_') }}"
     gallery_image_version: "{{image_version | default('1.0.0') }}"
     vm_list:
       - vm_name: ASR{{ vm_suffix }}
         vm_size: Standard_NC4as_T4_v3
+        metric_name: gearmand_functions_asr_queue
       - vm_name: Diarization{{ vm_suffix }}
         vm_size: Standard_NC4as_T4_v3
+        metric_name: gearmand_functions_diar_queue
       - vm_name: LexiQal{{ vm_suffix }}
         vm_size: Standard_F2s_v2
+        metric_name: gearmand_functions_transcript_summariser_queue
       - vm_name: LMBuilder{{ vm_suffix }}
         vm_size: Standard_F2s_v2
+        metric_name: gearmand_functions_lma_queue
       - vm_name: Sentiment{{ vm_suffix }}
         vm_size: Standard_NC4as_T4_v3
+        metric_name: gearmand_functions_sentiment_queue
       - vm_name: Tagger{{ vm_suffix }}
         vm_size: Standard_E2as_v5
+        metric_name: gearmand_functions_tagger_queue
       - vm_name: VAD{{ vm_suffix }}
         vm_size: Standard_F2s_v2
+        metric_name: gearmand_functions_vad_queue
       - vm_name: VoiceBiometric{{ vm_suffix }}
         vm_size: Standard_F2s_v2
+        metric_name: gearmand_functions_biometric_queue
   tasks:
+    - name: Get Azure Subscription info
+      azure.azcollection.azure_rm_subscription_info:
+        all: true
+      register: subscription_info
     - name: Create shared image gallery
       azure.azcollection.azure_rm_gallery:
         resource_group: "{{ resource_group }}"
@@ -51,6 +63,7 @@
         location: "{{ azure_region | default('uksouth') }}"
         os_type: linux
         os_state: generalized
+        hypervgeneration: "V2"
         identifier:
           publisher: IntelligentVoice
           offer: IntelligentVoice
@@ -60,7 +73,7 @@
       loop_control:
         label: 'image_{{ item.vm_name }}'
 
-    - name: Check if the gallery image version exists
+    - name: Get a list of existing gallery image versions, ignoring error if there are none
       azure.azcollection.azure_rm_galleryimageversion_info:
         resource_group: "{{ resource_group }}"
         gallery_name: "{{ shared_gallery_name }}"
@@ -69,6 +82,7 @@
       loop: '{{ vm_list }}'
       loop_control:
         label: 'image_{{ item.vm_name }}'
+      ignore_errors: true
 
     - name: Create or update a gallery image version
       azure.azcollection.azure_rm_galleryimageversion:
@@ -86,7 +100,7 @@
           storage_account_type: Standard_LRS
         storage_profile:
           source_image: "{{ image_results.results[loop_index].id }}"
-      when: "gallery_image_version not in existing_versions.results[loop_index] | map(attribute='name')"
+      when: "gallery_image_version not in existing_versions.results[loop_index].versions | default([]) | map(attribute='name')"
       loop: '{{ vm_list }}'
       loop_control:
         label: 'image_{{ item.vm_name }}'
@@ -111,3 +125,49 @@
       loop: '{{ vm_list }}'
       loop_control:
         index_var: loop_index
+      register: vmss_results
+
+    - name: Create auto scale rules
+      azure.azcollection.azure_rm_autoscale:
+        target: "{{ vmss_results.results[loop_index].id }}"
+        enabled: true
+        profiles:
+          - count: '1'
+            name: Auto created profile
+            rules:
+              - time_aggregation: Last
+                time_window: 1
+                direction: Increase
+                metric_name: "{{ item.metric_name }}}"
+                metric_namespace: azure.applicationinsights
+                metric_resource_uri: >-
+                  /subscriptions/{{ subscription_info.subscriptions[0].id }}
+                  /resourceGroups/{{ resource_group }}
+                  /providers/microsoft.insights/components/{{ appinsight_name }}
+                value: '1'
+                threshold: 1
+                cooldown: 5
+                time_grain: 1
+                statistic: Average
+                operator: GreaterThanOrEqual
+                type: ExactCount
+              - time_aggregation: Last
+                time_window: 1
+                direction: Decrease
+                metric_name: "{{ item.metric_name }}}"
+                metric_namespace: azure.applicationinsights
+                metric_resource_uri: >-
+                  /subscriptions/{{ subscription_info.subscriptions[0].id }}
+                  /resourceGroups/{{ resource_group }}
+                  /providers/microsoft.insights/components/{{ appinsight_name }}
+                value: '1'
+                threshold: 1
+                cooldown: 5
+                time_grain: 1
+                statistic: Average
+                operator: GreaterThanOrEqual
+                type: ExactCount
+            max_count: '10'
+        name: 'autoscale_{{ item.vm_name }}'
+        resource_group: "{{ resource_group }}"
+      loop: '{{ vm_list }}'
