@@ -55,16 +55,9 @@
           offer: IntelligentVoice
           sku: '{{ item.vm_name }}'
         description: '{{ item.vm_name }}'
-      register: result
-      failed_when:
-        - '"error" in result.msg|lower'
-        - '"already exists" not in result.msg|lower'
-      changed_when:
-        - '"already exists" not in result.msg|lower'
       loop: '{{ vm_list }}'
       loop_control:
         label: 'image_{{ item.vm_name }}'
-      ignore_errors: true
 
     - name: Create or update a simple gallery image version.
       azure.azcollection.azure_rm_galleryimageversion:
