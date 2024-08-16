@@ -3,6 +3,7 @@
   connection: local
   vars:
     shared_gallery_name: "iv_shared_gallery{{ vm_suffix | replace('-', '_') }}"
+    gallery_image_version: "{{image_version | default('1.0.0') }}"
     vm_list:
       - vm_name: ASR{{ vm_suffix }}
         vm_size: Standard_NC4as_T4_v3
@@ -59,12 +60,23 @@
       loop_control:
         label: 'image_{{ item.vm_name }}'
 
-    - name: Create or update a simple gallery image version.
+    - name: Check if the gallery image version exists
+      azure.azcollection.azure_rm_galleryimageversion_info:
+        resource_group: "{{ resource_group }}"
+        gallery_name: "{{ shared_gallery_name }}"
+        gallery_image_name: 'image_{{ item.vm_name }}'
+      register: existing_versions
+      loop: '{{ vm_list }}'
+      loop_control:
+        label: 'image_{{ item.vm_name }}'
+        index_var: loop_index
+
+    - name: Create or update a gallery image version
       azure.azcollection.azure_rm_galleryimageversion:
         resource_group: "{{ resource_group }}"
         gallery_name: "{{ shared_gallery_name }}"
         gallery_image_name: 'image_{{ item.vm_name }}'
-        name: 1.0.0
+        name: "{{ gallery_image_version }}"
         location: "{{ azure_region | default('UK South') }}"
         publishing_profile:
           replica_count: 1
@@ -75,6 +87,7 @@
           storage_account_type: Standard_LRS
         storage_profile:
           source_image: "{{ image_results.results[loop_index].id }}"
+      when: "gallery_image_version not in existing_versions.results | map(attribute='name')"
       loop: '{{ vm_list }}'
       loop_control:
         label: 'image_{{ item.vm_name }}'
