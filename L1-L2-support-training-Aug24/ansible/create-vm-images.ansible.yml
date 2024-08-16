@@ -2,7 +2,7 @@
   hosts: localhost
   connection: local
   vars:
-    shared_gallery_name: "iv_shared_gallery{{ vm_suffix }}"
+    shared_gallery_name: "iv_shared_gallery{{ vm_suffix | replace('-', '_') }}"
     vm_list:
       - vm_name: ASR{{ vm_suffix }}
         vm_size: Standard_NC4as_T4_v3
@@ -45,7 +45,7 @@
     - name: Create shared images
       azure.azcollection.azure_rm_galleryimage:
         resource_group: "{{ resource_group }}"
-        gallery_name: "iv_shared_gallery"
+        gallery_name: "{{ shared_gallery_name }}"
         name: 'image_{{ item.vm_name }}'
         location: "{{ azure_region | default('uksouth') }}"
         os_type: linux
