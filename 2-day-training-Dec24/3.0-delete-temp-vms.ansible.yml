@@ -1,0 +1,10 @@
+- name: Delete Azure VMs
+  hosts: localhost
+  connection: local
+  tasks:
+    - name: Delete VMs
+      azure.azcollection.azure_rm_virtualmachine:
+        resource_group: '{{ resource_group }}'
+        name: '{{ item }}'
+        state: absent
+      loop: "{{ groups['worker-servers'] }}"

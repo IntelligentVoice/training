@@ -1,0 +1,141 @@
+---
+- name: Create Azure VMs
+  hosts: localhost
+  connection: local
+  vars:
+    default_location: "uksouth"
+    ssh_key_path: "/home/{{ ansible_user }}/.ssh/id_rsa"
+    ssh_pub_key_path: "/home/{{ ansible_user }}/.ssh/id_rsa.pub"
+  tasks:
+    - name: Get Azure subscription info
+      azure.azcollection.azure_rm_subscription_info:
+      register: subscription_info
+
+    - name: Retrieve effective group ID
+      ansible.builtin.command: "id -g {{ ansible_user }}"
+      changed_when: false
+      register: group_command
+
+    - name: Ensure SSH directory exists for the current user
+      ansible.builtin.file:
+        path: /home/{{ ansible_user }}/.ssh
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: "{{ group_command.stdout }}"
+        mode: '0700'
+    - name: Generate SSH key if not present
+      ansible.builtin.user:
+        name: "{{ ansible_user }}"
+        generate_ssh_key: 'yes'
+        ssh_key_type: rsa
+        ssh_key_bits: 4096
+        ssh_key_file: "{{ ssh_key_path }}"
+
+    - name: Extract SSH public key from private key
+      ansible.builtin.command:
+        cmd: ssh-keygen -y -f "{{ ssh_key_path }}"
+      register: ssh_public_key
+      changed_when: false
+
+    - name: Save the SSH public key to a file
+      ansible.builtin.copy:
+        content: "{{ ssh_public_key.stdout }}"
+        dest: "{{ ssh_pub_key_path }}"
+        owner: "{{ ansible_user }}"
+        group: "{{ group_command.stdout }}"
+        mode: '0700'
+
+    - name: Display the SSH public key
+      ansible.builtin.debug:
+        msg: "{{ ssh_public_key.stdout }}"
+
+    - name: Create resource group
+      azure.azcollection.azure_rm_resourcegroup:
+        name: '{{ resource_group }}'
+        location: '{{ location | default(default_location) }}'
+
+    - name: Create virtual network
+      azure.azcollection.azure_rm_virtualnetwork:
+        resource_group: '{{ resource_group }}'
+        name: '{{ resource_group }}VNet'
+        address_prefixes:
+          - 10.0.0.0/16
+
+    - name: Create subnet
+      azure.azcollection.azure_rm_subnet:
+        resource_group: '{{ resource_group }}'
+        virtual_network_name: '{{ resource_group }}VNet'
+        name: '{{ resource_group }}VNet-autoscale-subnet'
+        address_prefix_cidr: 10.0.1.0/24
+
+    - name: Create VMs
+      azure.azcollection.azure_rm_virtualmachine:
+        resource_group: '{{ resource_group }}'
+        name: '{{ item }}'
+        vm_size: '{{ hostvars[item].instance_size }}'
+        managed_disk_type: Standard_LRS
+        admin_username: '{{ ansible_user }}'
+        ssh_password_enabled: false
+        os_disk_size_gb: 512
+        public_ip_allocation_method: Static
+        ssh_public_keys:
+          - path: "/home/{{ ansible_user }}/.ssh/authorized_keys"
+            key_data: "{{ lookup('file', ssh_pub_key_path) }}"
+        image:
+          offer: RHEL
+          publisher: RedHat
+          sku: 9-lvm-gen2
+          version: latest
+      loop: "{{ groups['all-in-one'] + groups['core-servers'] + groups['worker-servers'] }}"
+      loop_control:
+        label: '{{ item }}'
+      register: vm_create_results
+
+    - name: Gather VM public address info
+      azure.azcollection.azure_rm_publicipaddress_info:
+        resource_group: '{{ resource_group }}'
+        name: '{{ item.ansible_facts.azure_vm.network_profile.network_interfaces[0].name }}'
+      loop: "{{ vm_create_results.results }}"
+      register: publicipaddress_info_results
+      loop_control:
+        label: 'Interface {{ item.ansible_facts.azure_vm.network_profile.network_interfaces[0].name }}'
+
+    - name: Add public IP to inventory
+      ansible.builtin.lineinfile:
+        path: hosts.ini
+        regexp: '^{{ item.item.item }}(?!.*ansible_host=)(.*)$'
+        line: '{{ item.item.item }} ansible_host={{ item.publicipaddresses[0].ip_address }}\1'
+        backrefs: true
+      loop: "{{ publicipaddress_info_results.results }}"
+      loop_control:
+        label: '{{ item.item.item }} {{ item.publicipaddresses[0].ip_address }}'
+
+    - name: Show subscription details
+      ansible.builtin.debug:
+        msg:
+          - '{{ subscription_id | default(subscription_info.subscriptions[0].fqid) }}'
+          - '{{ location | default(default_location) }}'
+          - '{{ resource_group }}'
+
+    # - name: Set Auto-Shutdown VM Schedules
+    #   azure.azcollection.azure_rm_resource:
+    #     resource_group: "{{ resource_group }}"
+    #     provider: "DevTestLab"
+    #     resource_type: "schedules"
+    #     resource_name: "shutdown-computevm-{{ item }}"
+    #     api_version: "2018-09-15"
+    #     body:
+    #       location: '{{ location | default(default_location) }}'
+    #       properties:
+    #         status: "Enabled"
+    #         taskType: "ComputeVmShutdownTask"
+    #         dailyRecurrence:
+    #           time: "19:00"
+    #         timeZoneId: "UTC"
+    #         notificationSettings:
+    #           status: "Disabled"
+    #           targetResourceId: >-
+    #             {{ subscription_id | default(subscription_info.subscriptions[0].fqid) }}
+    #             /resourceGroups/{{ resource_group }}
+    #             /providers/Microsoft.Compute/virtualMachines/{{ item }}
+    #   loop: "{{groups['all-in-one'] + groups['core-servers'] + groups['worker-servers'] }}"

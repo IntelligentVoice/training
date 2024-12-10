@@ -1,0 +1,16 @@
+parameters:
+  - name: inlineScript
+    type: string
+  - name: displayName
+    type: string
+
+steps:
+          - task: AzureCLI@2
+            displayName: ${{ parameters.displayName }}
+            inputs:
+              azureSubscription: 'Azure-nightly-tests'
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: ${{ parameters.inlineScript }}
+            env:
+              VIRTUAL_ENV: $(Agent.ToolsDirectory)/Python/3/$(Agent.OSArchitecture)

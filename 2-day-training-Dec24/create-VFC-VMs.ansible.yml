@@ -1,0 +1,70 @@
+---
+- name: Create VMs for VFC
+  hosts: localhost
+  vars_files:
+    - users.yml
+    - azure-account.yml
+  vars:
+    password_file: "user_passwords.txt"
+  tasks:
+    - name: Slurp the password file
+      ansible.builtin.slurp:
+        src: "{{ password_file }}"
+      register: slurped_file
+
+    - name: Decode the password file content
+      ansible.builtin.set_fact:
+        password_file_content: "{{ slurped_file.content | b64decode }}"
+
+    - name: Recreate user_passwords variable
+      ansible.builtin.set_fact:
+        user_passwords: "{{ user_passwords | default({}) | combine({item.split(': ')[0]: item.split(': ')[1] })}}"
+      loop: "{{ password_file_content.splitlines() }}"
+
+    # - name: Create resource groups for each user
+    #   azure.azcollection.azure_rm_resourcegroup:
+    #     name: "{{ rg_prefix }}{{ item.display_name | lower | replace(' ', '-') }}"
+    #     location: "{{ region }}"
+    #     state: present
+    #   loop: "{{ users }}"
+
+    # - name: Create virtual networks
+    #   azure.azcollection.azure_rm_virtualnetwork:
+    #     resource_group: "{{ rg_prefix }}{{ item.display_name | lower | replace(' ', '-') }}"
+    #     name: "{{ rg_prefix }}{{ item.display_name | lower | replace(' ', '-') }}VNet"
+    #     address_prefixes:
+    #       - 10.0.0.0/16
+    #   loop: "{{ users }}"
+
+    # - name: Create subnets
+    #   azure.azcollection.azure_rm_subnet:
+    #     resource_group: "{{ rg_prefix }}{{ item.display_name | lower | replace(' ', '-') }}"
+    #     virtual_network_name: "{{ rg_prefix }}{{ item.display_name | lower | replace(' ', '-') }}VNet"
+    #     name: "{{ rg_prefix }}{{ item.display_name | lower | replace(' ', '-') }}VNet-VFC-Subnet"
+    #     address_prefix_cidr: 10.0.1.0/24
+    #   loop: "{{ users }}"
+
+    - name: Delete VMs
+      azure.azcollection.azure_rm_virtualmachine:
+        resource_group: "{{ rg_prefix }}{{ item.display_name | lower | replace(' ', '-') }}"
+        name: 'VFC'
+        state: absent
+      loop: "{{ users }}"
+
+    - name: Create VMs
+      azure.azcollection.azure_rm_virtualmachine:
+        resource_group: "{{ rg_prefix }}{{ item.display_name | lower | replace(' ', '-') }}"
+        name: 'VFC'
+        vm_size: '{{ VFC_VM_size }}'
+        managed_disk_type: Standard_LRS
+        admin_username: "{{ item.display_name | lower | replace(' ', '-') }}"
+        admin_password: "{{ user_passwords[item.user_principal_name] }}"
+        os_disk_size_gb: 64
+        state: present
+        os_type: Windows
+        image:
+          offer: WindowsServer
+          publisher: MicrosoftWindowsServer
+          sku: 2022-datacenter-azure-edition-hotpatch-smalldisk
+          version: latest
+      loop: "{{ users }}"

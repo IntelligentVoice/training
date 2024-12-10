@@ -1,0 +1,18 @@
+parameters:
+  - name: installer_version
+    type: string
+    default: main
+
+steps:
+- bash: curl -O https://installers.intelligentvoice.com/installer-${{ parameters.installer_version }}.zip
+
+- bash: unzip -l installer-${{ parameters.installer_version }}.zip || true
+
+- task: ExtractFiles@1
+  inputs:
+    archiveFilePatterns: 'installer-${{ parameters.installer_version }}.zip'
+    destinationFolder: '$(Build.ArtifactStagingDirectory)'
+    cleanDestinationFolder: false
+
+- publish: '$(Build.ArtifactStagingDirectory)/installer-${{ parameters.installer_version }}/'
+  artifact: installer

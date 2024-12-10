@@ -1,0 +1,116 @@
+trigger:
+  batch: true
+
+pool:
+  vmImage: ubuntu-latest
+
+parameters:
+  - name: Resource_Group
+    type: string
+    default: INT-8167
+  - name: Installer_Version
+    type: string
+    default: '4.8.0'
+
+stages:
+  - stage: Create_Azure_Environment
+    jobs:
+      - job: Create_VMs
+        steps:
+          - template: .azure-pipelines/templates/provision_ansible_control_node.yml
+          - template: .azure-pipelines/templates/AzureCLI.yml
+            parameters:
+              displayName: Fetch SSH key from KeyVault
+              inlineScript: ansible --version && ansible-playbook -u $USER -i hosts.ini .azure-pipelines/playbooks/fetch-ssh-key-from-keyvault.ansible.yml
+          - template: .azure-pipelines/templates/AzureCLI.yml
+            parameters:
+              displayName: 1.0-create-vms.ansible.yml
+              inlineScript: ansible-playbook -i hosts.ini -u $USER 1.0-create-vms.ansible.yml -e resource_group=${{ parameters.Resource_Group }}
+          - template: .azure-pipelines/templates/AzureCLI.yml
+            parameters:
+              displayName: 1.1-install-gpu-drivers.ansible.yml
+              inlineScript: ansible-playbook -i hosts.ini 1.1-install-gpu-drivers.ansible.yml -e resource_group=${{ parameters.Resource_Group }}
+          - publish: 'hosts.ini'
+            displayName: 'Publish inventory as artifact'
+            artifact: hosts.ini
+          - task: Bash@3
+            displayName: 1.2-set-partitions.ansible.yml
+            inputs:
+              targetType: 'inline'
+              script: ansible-playbook -i hosts.ini 1.2-set-partitions.ansible.yml
+          - task: Bash@3
+            displayName: 1.3-update-system.ansible.yml
+            inputs:
+              targetType: 'inline'
+              script: ansible-playbook -i hosts.ini 1.3-update-system.ansible.yml
+      - job: Create_image_gallery
+        steps:
+          - template: .azure-pipelines/templates/provision_ansible_control_node.yml
+          - template: .azure-pipelines/templates/AzureCLI.yml
+            parameters:
+              displayName: Create image gallery
+              inlineScript: ansible-playbook -i hosts.ini -u $USER 1.4-create-image-gallery.ansible.yml -e resource_group=${{ parameters.Resource_Group }}
+  - stage: Install_IV
+    dependsOn: ['Create_Azure_Environment']
+    jobs:
+      - job: Download_installer
+        steps:
+        - template: .azure-pipelines/templates/download_installer.yml
+          parameters:
+            installer_version: ${{ parameters.Installer_Version }}
+      - job: Add_secrets_to_inventory
+        steps:
+        - template: .azure-pipelines/templates/request_temp_registry_credentials.yml
+        - task: AzureKeyVault@2
+          inputs:
+            azureSubscription: 'Azure-nightly-tests'
+            KeyVaultName: 'iv-nightlytests-keyvault'
+            SecretsFilter: 'basicauthpassword'
+        - download: current
+          artifact: hosts.ini
+        - script: cat hosts.ini
+          displayName: cat hosts.ini
+        - task: replacetokens@6
+          displayName: Configure hosts.ini
+          inputs:
+            targetFiles: hosts.ini
+            actionOnMissing: error
+            actionOnNoFiles: error
+
+        - script: cat hosts.ini
+          displayName: cat hosts.ini
+
+      - job: Install_IV
+        timeoutInMinutes: 180
+        dependsOn: ['Download_installer', 'Add_secrets_to_inventory']
+        steps:
+          - template: .azure-pipelines/templates/provision_ansible_control_node.yml
+          - download: current
+            artifact: installer
+          - task: Bash@3
+            displayName: install.yml
+            inputs:
+              targetType: 'inline'
+              script: ansible-playbook -i hosts.ini $(Pipeline.Workspace)/installer/install.yml
+  # - stage: Create_Scale_Sets
+  #   dependsOn: ['Install_IV']
+  #   jobs:
+  #     #- job: Create_Scale_Sets
+  #     - job: Delete_temporary_VMs
+  #       steps:
+  #         - template: .azure-pipelines/templates/provision_ansible_control_node.yml
+  #         - template: .azure-pipelines/templates/AzureCLI.yml
+  #           parameters:
+  #             displayName: 3.0-delete-temp-vms.ansible.yml
+  #             inlineScript: ansible-playbook -i hosts.ini 3.0-delete-temp-vms.ansible.yml -e resource_group=${{ parameters.Resource_Group }}
+  #- stage: Run_Smoke_Test
+  # - stage: Cleanup
+  #   condition: always()
+  #   jobs:
+  #     - job: Delete_Resource_Group
+  #       steps:
+  #         - template: .azure-pipelines/templates/provision_ansible_control_node.yml
+  #         - template: .azure-pipelines/templates/AzureCLI.yml
+  #           parameters:
+  #             displayName: delete-all-from-resource-group.ansible.yml
+  #             inlineScript: ansible-playbook -i hosts.ini .azure-pipelines/playbooks/delete-all-from-resource-group.ansible.yml -e resource_group=${{ parameters.Resource_Group }}

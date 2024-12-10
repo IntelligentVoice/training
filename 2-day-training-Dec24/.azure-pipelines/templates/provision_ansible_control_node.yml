@@ -1,0 +1,24 @@
+
+        steps:
+          - task: Bash@3
+            displayName: Install Ansible
+            inputs:
+              filePath: $(Build.Repository.LocalPath)/.azure-pipelines/scripts/install-ansible.sh
+            env:
+              VIRTUAL_ENV: $(Agent.ToolsDirectory)/Python/3/$(Agent.OSArchitecture)
+          - task: Bash@3
+            displayName: Install Ansible collection for Azure
+            inputs:
+              filePath: $(Build.Repository.LocalPath)/.azure-pipelines/scripts/install-az-collection-for-ansible.sh
+            env:
+              VIRTUAL_ENV: $(Agent.ToolsDirectory)/Python/3/$(Agent.OSArchitecture)
+
+          - task: Bash@3
+            displayName: Install Azure CLI
+            inputs:
+              targetType: 'inline'
+              script: ansible-playbook -i localhost, $(Build.Repository.LocalPath)/.azure-pipelines/playbooks/install-az-cli.ansible.yml
+
+          - publish: '$(Pipeline.Workspace)/'
+            displayName: 'Publish Workspace as artifact'
+            artifact: Workspace

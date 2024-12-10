@@ -1,0 +1,16 @@
+---
+- name: Create Azure resources and validate NVIDIA GPU driver installation
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Install Azure NVIDIA GPU Driver Extension
+      when: hostvars[item].nvidia_runtime_enabled | default(false)
+      azure.azcollection.azure_rm_virtualmachineextension:
+        resource_group: "{{ resource_group }}"
+        virtual_machine_name: "{{ item }}"
+        name: NvidiaGpuDriverLinux
+        publisher: Microsoft.HpcCompute
+        virtual_machine_extension_type: NvidiaGpuDriverLinux
+        type_handler_version: 1.12
+      with_items: "{{ groups['all-in-one'] + groups['core-servers'] + groups['worker-servers'] }}"

@@ -1,0 +1,21 @@
+---
+- name: Delete all resources in a resource group
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Get all resources in the resource group
+      azure.azcollection.azure_rm_resourcegroup_info:
+        name: "{{ resource_group }}"
+        list_resources: true
+      register: resources
+
+    - name: Delete each resource
+      azure.azcollection.azure_rm_resource:
+        resource_group: "{{ resource_group }}"
+        resource_name: "{{ item.name }}"
+        resource_type: "{{ item.type }}"
+        state: absent
+      loop: "{{ resources.resourcegroups[0].resources }}"
+      loop_control:
+        label: "{{ item.name }}"
+      when: resources.resourcegroups[0] is defined

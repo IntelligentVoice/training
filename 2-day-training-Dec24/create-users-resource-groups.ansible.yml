@@ -1,0 +1,47 @@
+---
+- name: Create AAD users and resource groups
+  hosts: localhost
+  vars_files:
+    - users.yml
+    - azure-account.yml
+  vars:
+    password_file: "user_passwords.txt"
+  tasks:
+    - name: Generate secure passwords for each user
+      ansible.builtin.set_fact:
+        user_passwords: "{{ user_passwords | default({}) | combine({ item.user_principal_name: lookup('password', '/dev/null', length=14) }) }}"
+      loop: "{{ users }}"
+
+    - name: Write passwords to a file
+      ansible.builtin.lineinfile:
+        path: "{{ password_file }}"
+        line: "{{ item.key }}: {{ item.value }}"
+        create: true
+        owner: "{{ ansible_user }}"
+        mode: "0700"
+      loop: "{{ user_passwords | dict2items }}"
+
+    - name: Create users in Azure AD
+      azure.azcollection.azure_rm_aduser:
+        user_principal_name: "{{ item.user_principal_name }}"
+        display_name: "{{ item.display_name }}"
+        password: "{{ user_passwords[item.user_principal_name] }}"
+        state: present
+        account_enabled: true
+        tenant: "{{ tenant }}"
+      loop: "{{ users }}"
+      register: user_info
+
+    - name: Create resource groups for each user
+      azure.azcollection.azure_rm_resourcegroup:
+        name: "{{ rg_prefix }}{{ item.display_name | lower | replace(' ', '-') }}"
+        location: "{{ region }}"
+        state: present
+      loop: "{{ users }}"
+
+    - name: Assign Collaborator role to each user for their resource group
+      azure.azcollection.azure_rm_roleassignment:
+        role_definition_id: "Contributor"
+        assignee_object_id: "{{ user_info.results[item.index].object_id }}"
+        scope: "/subscriptions/{{ subscription_id }}/resourceGroups/{{ rg_prefix }}{{ item.display_name | lower | replace(' ', '-') }}"
+      loop: "{{ users }}"

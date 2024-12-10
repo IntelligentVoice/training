@@ -1,0 +1,4 @@
+venv/*
+ansible.cfg
+ansible.cfg.bak
+.vscode/settings.json
