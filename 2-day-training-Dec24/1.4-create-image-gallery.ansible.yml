@@ -8,6 +8,6 @@
     - name: Create image gallery
       azure.azcollection.azure_rm_gallery:
         resource_group: '{{ resource_group }}'
-        name: 'IVGallery{{ resource_group }}'
+        name: 'IVGallery{{ resource_group | replace('-', '_') }}'
         location: '{{ location | default(default_location) }}'
         description: Gallery containing images for IV VM Scale suites
